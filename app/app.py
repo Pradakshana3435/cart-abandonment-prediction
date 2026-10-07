@@ -6,6 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 import json
 import pandas as pd
 import streamlit as st
+import plotly.graph_objects as go
 from src.predict import predict_session
 
 st.set_page_config(page_title="Cart Abandonment Predictor", layout="wide")
@@ -65,30 +66,198 @@ with st.form("session_form"):
 
 if submitted:
     raw = {
-        "Administrative": admin_pages, "Administrative_Duration": admin_secs,
-        "Informational": info_pages, "Informational_Duration": info_secs,
-        "ProductRelated": product_pages, "ProductRelated_Duration": product_secs,
-        "BounceRates": bounce, "ExitRates": exit_rate, "PageValues": page_values,
-        "SpecialDay": special_day, "OperatingSystems": os_, "Browser": browser,
-        "Region": region, "TrafficType": traffic, "Weekend": weekend,
-        "Month": month, "VisitorType": visitor,
+        "Administrative": admin_pages,
+        "Administrative_Duration": admin_secs,
+        "Informational": info_pages,
+        "Informational_Duration": info_secs,
+        "ProductRelated": product_pages,
+        "ProductRelated_Duration": product_secs,
+        "BounceRates": bounce,
+        "ExitRates": exit_rate,
+        "PageValues": page_values,
+        "SpecialDay": special_day,
+        "OperatingSystems": os_,
+        "Browser": browser,
+        "Region": region,
+        "TrafficType": traffic,
+        "Weekend": weekend,
+        "Month": month,
+        "VisitorType": visitor,
     }
-    result = predict_session(raw, customer_id, session_id, low=low, high=high)
+
+    result = predict_session(
+        raw,
+        customer_id,
+        session_id,
+        low=low,
+        high=high
+    )
 
     st.divider()
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Abandonment probability", f"{result['abandonment_probability']:.1%}")
-    m2.metric("Risk level", result["risk_level"])
-    m3.metric("Recommended action", result["recommended_action"])
 
-    banner = {"High": st.error, "Medium": st.warning, "Low": st.success}[result["risk_level"]]
-    banner(f"{result['risk_level']} risk: {result['recommended_action']}")
+    m1, m2, m3 = st.columns(3)
+
+    m1.metric(
+        "Abandonment probability",
+        f"{result['abandonment_probability']:.1%}"
+    )
+
+    m2.metric(
+        "Risk level",
+        result["risk_level"]
+    )
+
+    m3.metric(
+        "Recommended action",
+        result["recommended_action"]
+    )
+
+    banner = {
+        "High": st.error,
+        "Medium": st.warning,
+        "Low": st.success
+    }[result["risk_level"]]
+
+    banner(
+        f"{result['risk_level']} risk: "
+        f"{result['recommended_action']}"
+    )
+
+    # --------------------------------------------------
+    # Probability Gauge
+    # --------------------------------------------------
+
+    st.subheader("Abandonment risk")
+
+    gauge_color = {
+        "High": "#e74c3c",
+        "Medium": "#f39c12",
+        "Low": "#2ecc71"
+    }[result["risk_level"]]
+
+    fig_gauge = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=result["abandonment_probability"] * 100,
+            number={"suffix": "%"},
+            gauge={
+                "axis": {"range": [0, 100]},
+                "bar": {"color": gauge_color},
+                "steps": [
+                    {
+                        "range": [0, low * 100],
+                        "color": "#d4f4dd"
+                    },
+                    {
+                        "range": [low * 100, high * 100],
+                        "color": "#fde3b8"
+                    },
+                    {
+                        "range": [high * 100, 100],
+                        "color": "#f8d0cc"
+                    },
+                ],
+                "threshold": {
+                    "line": {
+                        "color": "black",
+                        "width": 3
+                    },
+                    "thickness": 0.8,
+                    "value": (
+                        result["abandonment_probability"] * 100
+                    ),
+                },
+            },
+        )
+    )
+
+    fig_gauge.update_layout(
+        height=250,
+        margin=dict(
+            l=20,
+            r=20,
+            t=20,
+            b=20
+        )
+    )
+
+    st.plotly_chart(
+        fig_gauge,
+        width='stretch'
+    )
+
+    # --------------------------------------------------
+    # Important Factors
+    # --------------------------------------------------
 
     st.subheader("Important factors")
+
     if result["important_factors"]:
-        st.dataframe(pd.DataFrame(result["important_factors"]), hide_index=True, use_container_width=True)
+
+        fdf = pd.DataFrame(
+            result["important_factors"]
+        )
+
+        fdf["signed_impact"] = fdf.apply(
+            lambda r:
+                r["impact"]
+                if r["effect"] == "raises abandonment risk"
+                else -r["impact"],
+            axis=1
+        )
+
+        fdf = fdf.sort_values(
+            "signed_impact"
+        )
+
+        fig_bar = go.Figure(
+            go.Bar(
+                x=fdf["signed_impact"],
+                y=fdf["factor"],
+                orientation="h",
+                marker_color=[
+                    "#e74c3c"
+                    if v > 0
+                    else "#2ecc71"
+                    for v in fdf["signed_impact"]
+                ],
+                text=[
+                    f"{v:+.2f}"
+                    for v in fdf["signed_impact"]
+                ],
+                textposition="outside",
+            )
+        )
+
+        fig_bar.update_layout(
+            xaxis_title=(
+                "← lowers risk    raises risk →"
+            ),
+            height=300,
+            margin=dict(
+                l=10,
+                r=10,
+                t=10,
+                b=10
+            ),
+        )
+
+        st.plotly_chart(
+            fig_bar,
+            width='stretch'
+        )
+
     else:
-        st.write("No single factor had a large effect.")
+        st.write(
+            "No single factor had a large effect."
+        )
+
+    # --------------------------------------------------
+    # JSON Output
+    # --------------------------------------------------
 
     with st.expander("API-style JSON output"):
-        st.code(json.dumps(result, indent=2), language="json")
+        st.code(
+            json.dumps(result, indent=2),
+            language="json"
+        )

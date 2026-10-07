@@ -1,0 +1,32 @@
+{
+  "sample_1_high_risk": {
+    "input": {
+      "customer_id": "C002", "session_id": "S2001",
+      "ProductRelated": 1, "ProductRelated_Duration": 0,
+      "BounceRates": 0.2, "ExitRates": 0.2, "PageValues": 0,
+      "Month": "May", "VisitorType": "New_Visitor", "Weekend": false
+    },
+    "output": {
+      "abandonment_probability": 1.0,
+      "risk_level": "High",
+      "recommended_action": "First-purchase incentive",
+      "important_factors": [
+        {"factor": "Page value", "effect": "raises abandonment risk", "impact": 2.383},
+        {"factor": "Exit rate", "effect": "raises abandonment risk", "impact": 1.611}
+      ]
+    }
+  },
+  "sample_2_low_risk": {
+    "input": {
+      "customer_id": "C001", "session_id": "S1002",
+      "ProductRelated": 8, "ProductRelated_Duration": 300,
+      "BounceRates": 0.02, "ExitRates": 0.05, "PageValues": 30,
+      "Month": "Nov", "VisitorType": "New_Visitor", "Weekend": false
+    },
+    "output": {
+      "abandonment_probability": 0.224,
+      "risk_level": "Low",
+      "recommended_action": "No immediate action"
+    }
+  }
+}
